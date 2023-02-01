@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fedbox"
+version = "0.0.0.dev0"
+authors = [{ name = "ZHB", email = "zhb2000@zju.edu.cn" }]
+description = "Toolbox for federated learning research."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.9"
+keywords = ["pytorch"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed"
+]
+
+[project.urls]
+"Source" = "https://github.com/zhb2000/fedbox"
+"Bug Tracker" = "https://github.com/zhb2000/fedbox/issues"
