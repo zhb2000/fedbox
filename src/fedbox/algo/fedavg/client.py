@@ -2,7 +2,6 @@ import torch
 import torch.nn
 
 from ...utils.functional import assign
-
 from ..localonly import LocalOnlyClient
 
 

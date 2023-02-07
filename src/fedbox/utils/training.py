@@ -8,6 +8,7 @@ import torch.cuda
 
 __all__ = [
     'EarlyStopper',
+    'MeanDict',
     'set_seed',
     'freeze_module',
     'unfreeze_module'
@@ -60,6 +61,34 @@ class EarlyStopper:
 
     def __contains__(self, key: str) -> bool:
         return key in self.dict
+
+
+class MeanDict:
+    def __init__(self):
+        self.sum: dict[str, float] = {}
+        self.count: dict[str, int] = {}
+
+    def add(self, **values):
+        for key, value in values.items():
+            if key not in self:
+                self.sum[key] = 0.0
+                self.count[key] = 1
+            self.sum[key] += float(value)
+            self.count[key] += 1
+
+    def __getitem__(self, key: str):
+        return self.sum[key] / self.count[key]
+
+    def __delitem__(self, key: str):
+        del self.sum[key]
+        del self.count[key]
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.sum
+
+    def clear(self):
+        self.sum.clear()
+        self.count.clear()
 
 
 def set_seed(seed: int = 0):
