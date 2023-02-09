@@ -1,5 +1,5 @@
 import random
-from typing import Any, Union, Iterable
+from typing import Any, Union, Iterable, Optional
 
 import numpy as np
 import torch
@@ -16,8 +16,8 @@ __all__ = [
 
 
 class EarlyStopper:
-    def __init__(self, higher_better: bool, patience: int = 1):
-        if patience < 1:
+    def __init__(self, higher_better: bool, patience: Optional[int] = None):
+        if patience is not None and patience < 1:
             raise ValueError("'patience' must be at least 1")
         self.higher_better = higher_better
         self.best_metric: float = -np.inf if higher_better else np.inf
@@ -48,7 +48,7 @@ class EarlyStopper:
             return False
 
     def reach_stop(self) -> bool:
-        return self.worse_times >= self.patience
+        return self.patience is not None and self.worse_times >= self.patience
 
     def __getitem__(self, key: str):
         return self.dict[key]
