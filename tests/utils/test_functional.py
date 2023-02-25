@@ -22,26 +22,6 @@ class TestModelOperation(unittest.TestCase):
 
         return Model(w1, w2)
 
-    def test_model_zip(self):
-        m1 = self.make_model(0, 1)
-        m2 = self.make_model(2, 3)
-        result = list(model_zip(m1, m2))
-        (m1w1, m2w1), (m1w2, m2w2) = result
-        self.assertIs(m1w1, m1.w1)
-        self.assertIs(m1w2, m1.w2)
-        self.assertIs(m2w1, m2.w1)
-        self.assertIs(m2w2, m2.w2)
-
-    def test_model_zip_parameters(self):
-        m1 = self.make_model(0, 1)
-        m2 = self.make_model(2, 3)
-        result = list(model_zip(m1.parameters(), m2.parameters()))
-        (m1w1, m2w1), (m1w2, m2w2) = result
-        self.assertIs(m1w1, m1.w1)
-        self.assertIs(m1w2, m1.w2)
-        self.assertIs(m2w1, m2.w1)
-        self.assertIs(m2w2, m2.w2)
-
     def test_model_assign(self):
         m1 = self.make_model(0, 1)
         m2 = self.make_model(2, 3)
@@ -53,22 +33,10 @@ class TestModelOperation(unittest.TestCase):
         for p in m2.parameters():
             self.assertIsNone(p.grad)
 
-    def test_model_assign_parameters(self):
-        m1 = self.make_model(0, 1)
-        m2 = self.make_model(2, 3)
-        model_assign(m1.parameters(), m2.parameters())
-        self.assertTrue((m1.w1 == 2).all())
-        self.assertTrue((m1.w2 == 3).all())
-        for p in m1.parameters():
-            self.assertIsNone(p.grad)
-        for p in m2.parameters():
-            self.assertIsNone(p.grad)
-
     def test_model_assign_helper(self):
         m1 = self.make_model(0, 1)
         m2 = self.make_model(2, 3)
         assign[m1] = m2
-        assign[m1.parameters()] = m2.parameters()
         self.assertTrue((m1.w1 == 2).all())
         self.assertTrue((m1.w2 == 3).all())
         for p in m1.parameters():
@@ -120,6 +88,24 @@ class TestModelOperation(unittest.TestCase):
             self.assertIsNone(p.grad)
         for p in dest.parameters():
             self.assertIsNone(p.grad)
+
+    def test_average_bn(self):
+        with torch.no_grad():
+            m1 = torch.nn.BatchNorm1d(1)
+            m1.running_mean.data = torch.tensor([1.])
+            m1.running_var.data = torch.tensor([1.])
+            m1.weight.data = torch.tensor([1.])
+            m1.bias.data = torch.tensor([1.])
+            m2 = torch.nn.BatchNorm1d(1)
+            m2.running_mean.data = torch.tensor([2.])
+            m2.running_var.data = torch.tensor([2.])
+            m2.weight.data = torch.tensor([2.])
+            m2.bias.data = torch.tensor([2.])
+        result = model_average([m1, m2], [0.5, 0.5])
+        self.assert_close(result['running_mean'], torch.tensor([1.5]))
+        self.assert_close(result['running_var'], torch.tensor([1.5]))
+        self.assert_close(result['weight'], torch.tensor([1.5]))
+        self.assert_close(result['bias'], torch.tensor([1.5]))
 
 
 class TestTensorFunction(unittest.TestCase):

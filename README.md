@@ -25,24 +25,21 @@ pip install --editable .
 # Usage
 ## Model Aggregation
 
-It's easy to implement a custom aggregate operation using `model_aggregation` and `assign`.
+It's easy to implement a custom aggregate operation using `model_aggregate` and `assign`.
 
 ```python
-from fedbox.utils.functional import assign, model_aggregation
+from fedbox.utils.functional import assign, model_aggregate
 
-model_a: Module = ...
-model_b: Module = ...
+ma: Module = ...
+mb: Module = ...
 result: Module = ...
-assign[result] = model_aggregation(
-    lambda a, b: (a + b) / 2,
-    model_a, model_b
-)
+assign[result] = model_aggregate(lambda a, b: (a + b) / 2, ma, mb)
 ```
 
-The sequence version of `model_aggregation`:
+The sequence version of `model_aggregate`:
 
 ```python
-def average(params: tuple[Tensor, ...]) -> Tensor:
+def average(params: Sequence[Tensor]) -> Tensor:
     return sum(params) / len(params)
 
 models: list[Module] = ...

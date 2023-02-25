@@ -1,144 +1,150 @@
-import sys
-import warnings
-from typing import Union, Iterable, Callable, Sequence, cast, overload
+from typing import Union, Callable, Sequence, Mapping, cast, overload
 
 import torch
 import torch.nn
 from torch import Tensor
+from torch.nn import Module
 
 __all__ = [
     'model_assign',
+    'Assign',
     'assign',
-    'model_zip',
+    'model_named_zip',
     'model_aggregate',
     'model_average',
     'weighted_average'
 ]
 
-
-def model_zip(*models: Union[torch.nn.Module, Iterable[Tensor]]) -> Iterable[tuple[Tensor, ...]]:
-    iterables: list[Iterable[Tensor]] = [
-        m.parameters() if isinstance(m, torch.nn.Module) else m for m in models
-    ]
-    kwargs = {'strict': True} if sys.version_info >= (3, 10) else {}  # TODO zip strict
-    return zip(*iterables, **kwargs)
+def model_assign(dest: Module, src: Union[Module, Mapping[str, Tensor]]):
+    if isinstance(src, Module):
+        src = src.state_dict()
+    dest.load_state_dict(src, strict=False)
 
 
-@torch.no_grad()
-def model_assign(
-    dest: Union[torch.nn.Module, Iterable[Tensor]],
-    value: Union[torch.nn.Module, Iterable[Tensor]]
-):
-    if dest is value:
-        warnings.warn('You are doing self assignment.')
-    for p1, p2 in model_zip(dest, value):
-        p1.data = p2.data
+class Assign:
+    def __setitem__(self, dest: Module, src: Union[Module, Mapping[str, Tensor]]):
+        model_assign(dest, src)
+
+    __call__ = __setitem__
 
 
-class AssignHelper:
-    def __setitem__(
-        self,
-        dest: Union[torch.nn.Module, Iterable[Tensor]],
-        value: Union[torch.nn.Module, Iterable[Tensor]]
-    ):
-        model_assign(dest, value)
-
-    def __call__(
-        self,
-        dest: Union[torch.nn.Module, Iterable[Tensor]],
-        value: Union[torch.nn.Module, Iterable[Tensor]]
-    ):
-        model_assign(dest, value)
-
-
-assign = AssignHelper()
+assign = Assign()
 """
-A helper to assign model parameters. ::
+A helper object to assign model parameters. ::
 
-    assign[dest] = value
+    assign[dest] = src
 
 is equivalent to ::
 
-    model_assign(dest, value)
+    model_assign(dest, src)
 """
 
 
 @overload
-def model_aggregate(
-    aggregator: Callable[[tuple[Tensor, ...]], Tensor],
-    models: Sequence[Union[torch.nn.Module, Iterable[Tensor]]],
+def model_named_zip(
+    model1: Union[Module, Mapping[str, Tensor]],
+    model2: Union[Module, Mapping[str, Tensor]],
     /
-) -> Iterable[Tensor]: ...
+) -> dict[str, tuple[Tensor, Tensor]]: ...
+@overload
+def model_named_zip(
+    model1: Union[Module, Mapping[str, Tensor]],
+    model2: Union[Module, Mapping[str, Tensor]],
+    model3: Union[Module, Mapping[str, Tensor]],
+    /
+) -> dict[str, tuple[Tensor, Tensor, Tensor]]: ...
+@overload
+def model_named_zip(
+    model1: Union[Module, Mapping[str, Tensor]],
+    model2: Union[Module, Mapping[str, Tensor]],
+    model3: Union[Module, Mapping[str, Tensor]],
+    model4: Union[Module, Mapping[str, Tensor]],
+    /,
+    *models: Union[Module, Mapping[str, Tensor]],
+) -> dict[str, tuple[Tensor, ...]]: ...
 
 
+def model_named_zip(*models: Union[Module, Mapping[str, Tensor]]) -> dict[str, tuple[Tensor, ...]]:
+    mappings: list[Mapping[str, Tensor]] = [m.state_dict() if isinstance(m, Module) else m for m in models]
+    keys = mappings[0].keys()
+    return {name: tuple(m[name] for m in mappings) for name in keys}  # TODO convert to tensor?
+
+
+@overload
+def model_aggregate(
+    aggregator: Callable[[Sequence[Tensor]], Tensor],
+    models: Sequence[Union[Module, Mapping[str, Tensor]]],
+    /
+) -> dict[str, Tensor]: ...
 @overload
 def model_aggregate(
     aggregator: Callable[[Tensor, Tensor], Tensor],
-    model1: Union[torch.nn.Module, Iterable[Tensor]],
-    model2: Union[torch.nn.Module, Iterable[Tensor]],
+    model1: Union[Module, Mapping[str, Tensor]],
+    model2: Union[Module, Mapping[str, Tensor]],
     /
-) -> Iterable[Tensor]: ...
-
-
+) -> dict[str, Tensor]: ...
 @overload
 def model_aggregate(
     aggregator: Callable[[Tensor, Tensor, Tensor], Tensor],
-    model1: Union[torch.nn.Module, Iterable[Tensor]],
-    model2: Union[torch.nn.Module, Iterable[Tensor]],
-    model3: Union[torch.nn.Module, Iterable[Tensor]],
+    model1: Union[Module, Mapping[str, Tensor]],
+    model2: Union[Module, Mapping[str, Tensor]],
+    model3: Union[Module, Mapping[str, Tensor]],
     /
-) -> Iterable[Tensor]: ...
-
-
+) -> dict[str, Tensor]: ...
 @overload
 def model_aggregate(
     aggregator: Callable[[Tensor, Tensor, Tensor, Tensor], Tensor],
-    model1: Union[torch.nn.Module, Iterable[Tensor]],
-    model2: Union[torch.nn.Module, Iterable[Tensor]],
-    model3: Union[torch.nn.Module, Iterable[Tensor]],
-    model4: Union[torch.nn.Module, Iterable[Tensor]],
+    model1: Union[Module, Mapping[str, Tensor]],
+    model2: Union[Module, Mapping[str, Tensor]],
+    model3: Union[Module, Mapping[str, Tensor]],
+    model4: Union[Module, Mapping[str, Tensor]],
     /
-) -> Iterable[Tensor]: ...
-
-
+) -> dict[str, Tensor]: ...
 @overload
 def model_aggregate(
     aggregator: Callable[..., Tensor],
-    model1: Union[torch.nn.Module, Iterable[Tensor]],
-    model2: Union[torch.nn.Module, Iterable[Tensor]],
-    model3: Union[torch.nn.Module, Iterable[Tensor]],
-    model4: Union[torch.nn.Module, Iterable[Tensor]],
-    model5: Union[torch.nn.Module, Iterable[Tensor]],
+    model1: Union[Module, Mapping[str, Tensor]],
+    model2: Union[Module, Mapping[str, Tensor]],
+    model3: Union[Module, Mapping[str, Tensor]],
+    model4: Union[Module, Mapping[str, Tensor]],
+    model5: Union[Module, Mapping[str, Tensor]],
     /,
-    *models: Union[torch.nn.Module, Iterable[Tensor]],
-) -> Iterable[Tensor]: ...
+    *models: Module,
+) -> dict[str, Tensor]: ...
 
 
 @torch.no_grad()
-def model_aggregate(aggregator: Callable[..., Tensor], *args) -> Iterable[Tensor]:
+def model_aggregate(aggregator: Callable[..., Tensor], *args) -> dict[str, Tensor]:
     """
-    Sequence version: ::
+    The sequence version: ::
 
-        # `s` is a tuple of tensor
-        result = model_aggregate(lambda s: (s[0] + s[1]) / 2, [model_a, model_b])
+        models: list[Module] = ...
+        result: Module = ...
+        assign[result] = model_aggregation(average, models)
 
-    Unpacked version: ::
+    The unpacked version: ::
 
-        # `a` and `b` are tensors
-        result = model_aggregate(lambda a, b: (a + b) / 2, model_a, model_b)
+        ma: Module = ...
+        mb: Module = ...
+        result: Module = ...
+        assign[result] = model_aggregation(lambda a, b: (a + b) / 2, ma, mb)
     """
+    result: dict[str, Tensor] = {}
     if len(args) == 1:
-        return (aggregator(params) for params in model_zip(*args[0]))
+        for name, params in model_named_zip(*args[0]).items():
+            result[name] = aggregator(params)
     else:
         assert len(args) >= 2
-        return (aggregator(*params) for params in model_zip(*args))
+        for name, params in model_named_zip(*args).items():
+            result[name] = aggregator(*params)
+    return result
 
 
 def model_average(
-    models: Sequence[Union[torch.nn.Module, Iterable[Tensor]]],
+    models: Sequence[Union[Module, Mapping[str, Tensor]]],
     weights: Sequence[float],
     normalize: bool = True,
-) -> Iterable[Tensor]:
+) -> Mapping[str, Tensor]:
     return model_aggregate(
         lambda params: weighted_average(params, weights, normalize),
         models

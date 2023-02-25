@@ -1,4 +1,5 @@
-from typing import Iterable, Optional, Union, NamedTuple, Any
+import copy
+from typing import Iterable, Optional, NamedTuple, Any
 
 import torch
 import torch.nn
@@ -8,13 +9,13 @@ from tqdm import tqdm
 from ...utils.functional import assign, model_aggregate
 from ..commons import mixin
 from ..commons.optim import NoScheduleLR
+from .functional import make_control_variate
 from .optim import ScaffoldOptimizer
-from .functional import make_control_variate, control_to_
 
 
 class Response(NamedTuple):
     model: torch.nn.Module
-    delta_control: list[torch.Tensor]
+    delta_control: torch.nn.Module
 
 
 class ScaffoldClient(mixin.Evaluate, mixin.Client):
@@ -37,6 +38,8 @@ class ScaffoldClient(mixin.Evaluate, mixin.Client):
         self.model = model  # local model
         # local control variate (named c_i in the paper)
         self.control = make_control_variate(model)
+        for p in self.control.parameters():
+            p.data.zero_()
         self.train_loader = train_loader
         self.train_sample_num = train_sample_num
         self.valid_loader = valid_loader  # local valid samples (for PFL)
@@ -55,12 +58,12 @@ class ScaffoldClient(mixin.Evaluate, mixin.Client):
     def configure_scheduler(self):
         return NoScheduleLR()
 
-    def fit(self, global_model: torch.nn.Module, global_control: list[torch.Tensor]) -> Response:
+    def fit(self, global_model: torch.nn.Module, global_control: torch.nn.Module) -> Response:
         assign[self.model] = global_model
         self.model.to(self.device)
         global_model.to(self.device)
-        control_to_(self.control, self.device)
-        control_to_(global_control, self.device)
+        self.control.to(self.device)
+        global_control.to(self.device)
         self.model.train()
         step_num = 0
         for epoch in tqdm(range(self.local_epochs), desc=f'client {self.id}', leave=False):
@@ -70,24 +73,25 @@ class ScaffoldClient(mixin.Evaluate, mixin.Client):
                 loss = torch.nn.functional.cross_entropy(output, targets)
                 self.optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step(global_control, self.control)
+                self.optimizer.step(global_control.parameters(), self.control.parameters())
                 step_num += 1
             self.scheduler.step()
         # update local control variate
-        new_control = list(model_aggregate(
+        old_control = copy.deepcopy(self.control)
+        delta_control = copy.deepcopy(self.control)
+        assign[self.control] = model_aggregate(
             lambda ci, c, yi, x: ci - c + (x - yi) / (step_num * self.lr),
             self.control, global_control, self.model, global_model
-        ))
-        delta_control = list(model_aggregate(
+        )
+        assign[delta_control] = model_aggregate(
             lambda new, old: new - old,
-            new_control, self.control
-        ))
-        assign[self.control] = new_control
+            self.control, old_control
+        )
         self.model.cpu()
         global_model.cpu()
-        control_to_(self.control, 'cpu')
-        control_to_(global_control, 'cpu')
-        control_to_(delta_control, 'cpu')
+        self.control.cpu()
+        global_control.cpu()
+        delta_control.cpu()
         return Response(self.model, delta_control)
 
     def make_checkpoint(self) -> dict[str, Any]:
@@ -95,6 +99,4 @@ class ScaffoldClient(mixin.Evaluate, mixin.Client):
 
     def load_checkpoint(self, checkpoint: dict[str, Any]):
         mixin.Client.load_checkpoint(self, checkpoint)
-        if 'control' in checkpoint:
-            for i, x in enumerate(checkpoint['control']):
-                self.control[i] = x
+        self.control.load_state_dict(checkpoint['control'])

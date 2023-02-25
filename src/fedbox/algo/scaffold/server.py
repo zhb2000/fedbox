@@ -1,4 +1,3 @@
-import random
 from typing import Iterable, Optional, Any
 
 import torch
@@ -38,16 +37,14 @@ class ScaffoldServer(mixin.Evaluate, mixin.PersonalizedEvaluate, mixin.Server):
         for self.current_round in range(self.current_round, self.global_rounds):
             selected_clients: list[ScaffoldClient] = self.sample_clients()
             client_weights = [c.train_sample_num for c in selected_clients]
-            recv_models: list[torch.nn.Module] = []
-            recv_delta_controls: list[list[torch.Tensor]] = []
+            recvs = []
             for client in tqdm(selected_clients, desc=f'round {self.current_round}', leave=False):
                 recv = client.fit(global_model=self.model, global_control=self.control)
-                recv_models.append(recv.model)
-                recv_delta_controls.append(recv.delta_control)
+                recvs.append(recv)
             # aggregate models
-            assign[self.model] = model_average(recv_models, client_weights)
+            assign[self.model] = model_average([recv.model for recv in recvs], client_weights)
             # aggregate control variates
-            delta_control = model_average(recv_delta_controls, client_weights)
+            delta_control = model_average([recv.delta_control for recv in recvs], client_weights)
             ratio = len(selected_clients) / len(self.clients)  # |S| / N
             assign[self.control] = model_aggregate(
                 lambda c, delta_c: c + ratio * delta_c,
@@ -60,6 +57,4 @@ class ScaffoldServer(mixin.Evaluate, mixin.PersonalizedEvaluate, mixin.Server):
 
     def load_checkpoint(self, checkpoint: dict[str, Any]):
         mixin.Server.load_checkpoint(self, checkpoint)
-        if 'control' in checkpoint:
-            for i, x in enumerate(checkpoint['control']):
-                self.control[i] = x
+        self.control.load_state_dict(checkpoint['control'])

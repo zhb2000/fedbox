@@ -1,13 +1,11 @@
-from typing import Union
+import copy
 
 import torch
 import torch.nn
 
 
-def make_control_variate(model: torch.nn.Module) -> list[torch.Tensor]:
-    return [torch.zeros_like(p, requires_grad=True) for p in model.parameters()]
-
-
-def control_to_(control: list[torch.Tensor], device: Union[torch.device, str]):
-    for i in range(len(control)):
-        control[i] = control[i].to(device)
+def make_control_variate(model: torch.nn.Module) -> torch.nn.Module:
+    control = copy.deepcopy(model)
+    for p in control.parameters():
+        p.data.zero_()
+    return control
