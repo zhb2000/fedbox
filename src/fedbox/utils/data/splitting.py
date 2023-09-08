@@ -6,13 +6,6 @@ NDArray1 = TypeVar('NDArray1', bound=np.ndarray)
 NDArray2 = TypeVar('NDArray2', bound=np.ndarray)
 F = TypeVar('F', bound=Callable)
 
-__all__ = [
-    'split_uniformly',
-    'split_dirichlet_quantity',
-    'split_dirichlet_label',
-    'split_by_label'
-]
-
 
 def split_uniformly(
     data: NDArray1,
@@ -152,7 +145,7 @@ def split_by_label(
     :return: List of (data, labels).
     """
     classes = np.unique(labels)
-    np.random.shuffle(classes)
+    # np.random.shuffle(classes)
     class_num = len(classes)
     if class_per_client > class_num:
         raise ValueError("'class_per_client' should be less than or equal to 'class_num'")
@@ -160,7 +153,14 @@ def split_by_label(
         raise ValueError('Each class should be assigned to at least one client.')
     # ensure that len(classes_sequence) >= client_num * class_per_client
     repeat_count = _ceil_div(client_num * class_per_client, class_num)
-    classes_sequence = np.tile(classes, repeat_count)
+
+    classes_sequence = []
+    for _ in range(repeat_count):
+        np.random.shuffle(classes)
+        classes_sequence.extend(classes.tolist())
+    classes_sequence = np.array(classes_sequence)
+
+    # classes_sequence = np.tile(classes, repeat_count)
     clients_classes = [
         classes_sequence[i:(i + class_per_client)]
         for i in range(0, client_num * class_per_client, class_per_client)

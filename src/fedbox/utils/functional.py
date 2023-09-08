@@ -5,40 +5,6 @@ import torch.nn
 from torch import Tensor
 from torch.nn import Module
 
-__all__ = [
-    'model_assign',
-    'Assign',
-    'assign',
-    'model_named_zip',
-    'model_aggregate',
-    'model_average',
-    'weighted_average'
-]
-
-def model_assign(dest: Module, src: Union[Module, Mapping[str, Tensor]]):
-    if isinstance(src, Module):
-        src = src.state_dict()
-    dest.load_state_dict(src, strict=False)
-
-
-class Assign:
-    def __setitem__(self, dest: Module, src: Union[Module, Mapping[str, Tensor]]):
-        model_assign(dest, src)
-
-    __call__ = __setitem__
-
-
-assign = Assign()
-"""
-A helper object to assign model parameters. ::
-
-    assign[dest] = src
-
-is equivalent to ::
-
-    model_assign(dest, src)
-"""
-
 
 @overload
 def model_named_zip(
@@ -161,3 +127,28 @@ def weighted_average(
         weights = [w / w_sum for w in weights]
     result = sum(x * w for x, w in zip(tensors, weights))
     return cast(Tensor, result)
+
+
+def model_assign(dest: Module, src: Union[Module, Mapping[str, Tensor]]):
+    if isinstance(src, Module):
+        src = src.state_dict()
+    dest.load_state_dict(src, strict=False)
+
+
+class Assign:
+    def __setitem__(self, dest: Module, src: Union[Module, Mapping[str, Tensor]]):
+        model_assign(dest, src)
+
+    __call__ = __setitem__
+
+
+assign = Assign()
+"""
+A helper object to assign model parameters. ::
+
+    assign[dest] = src
+
+is equivalent to ::
+
+    model_assign(dest, src)
+"""

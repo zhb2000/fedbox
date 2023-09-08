@@ -19,33 +19,11 @@ pip install .
 Editable installation (for development):
 
 ```shell
+# For an editable installation, replace 'pip install .' to
 pip install --editable .
 ```
 
 # Usage
-## Model Aggregation
-
-It's easy to implement a custom aggregate operation using `model_aggregate` and `assign`.
-
-```python
-from fedbox.utils.functional import assign, model_aggregate
-
-ma: Module = ...
-mb: Module = ...
-result: Module = ...
-assign[result] = model_aggregate(lambda a, b: (a + b) / 2, ma, mb)
-```
-
-The sequence version of `model_aggregate`:
-
-```python
-def average(params: Sequence[Tensor]) -> Tensor:
-    return sum(params) / len(params)
-
-models: list[Module] = ...
-result: Module = ...
-assign[result] = model_aggregation(average, models)
-```
 
 ## Data Splitting
 
@@ -53,34 +31,69 @@ The module `fedbox.utils.data` provides several data splitting strategies for fe
 
 The following example implements the non-IID setting of the paper [Communication-Efficient Learning of Deep Networks from Decentralized Data](https://proceedings.mlr.press/v54/mcmahan17a.html). Each client only has samples of two labels.
 
+Split the dataset:
+
 ```python
 import json
 import numpy as np
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, ToTensor, Normalize
-from fedbox.utils.data import split_by_label, DatasetSubset
-
-def split_to_clients(mnist: MNIST):
-    results = split_by_label(
-        np.arange(len(mnist)),  # indices
-        mnist.targets.numpy(),  # labels
-        client_num=100,
-        class_per_client=2
-    )  # split indices into 100 clients
-    with open('mnist.json', 'w') as file:
-        json.dump([indices.tolist() for indices, _ in results], file, indent=4)
-
-def read_client_datasets(mnist: MNIST) -> list[DatasetSubset]:
-    with open('mnist.json') as file:
-        results: list[list[int]] = json.load(file)
-    return [DatasetSubset(mnist, indices) for indices in results]
+from fedbox.utils.data import split_by_label
 
 if __name__ == '__main__':
+    client_num = 100
+    class_per_client = 2
+    splitting_file = 'mnist-splitting.json'
     mnist = MNIST(
-        train=train,
+        train=True,
         transform=Compose([ToTensor(), Normalize([0.5], [0.5])]) 
     )
-    split_to_clients(mnist)
+    results: list[tuple[np.ndarray, np.ndarray]] = split_by_label(
+        np.arange(len(mnist)),  # indices
+        mnist.targets.numpy(),  # labels
+        client_num,
+        class_per_client=class_per_client
+    )  # split indices into 100 clients
+    with open(splitting_file, 'w') as file:
+        json.dump([indices.tolist() for indices, _ in results], file, indent=4)
+```
+
+Read the dataset:
+
+```python
+from torch.utils.data import Subset
+
+def read_clients_dataset(mnist: MNIST, splitting_file: str) -> list[Subset]:
+    """Read the dataset subset for each client."""
+    with open(splitting_file) as file:
+        results: list[list[int]] = json.load(file)
+    return [Subset(mnist, indices) for indices in results]
+```
+
+## Model Aggregation
+
+Use `model_aggregate` to implement custom aggregate operations.
+
+Aggregate two models:
+
+```python
+from fedbox.utils.functional import model_aggregate
+
+ma: Module = ...
+mb: Module = ...
+result: Module = ...
+result.load_state_dict(model_aggregate(lambda a, b: (a + b) / 2, ma, mb))
+```
+
+Aggregate a sequence of models:
+
+```python
+def average(params: Sequence[Tensor]) -> Tensor:
+    return sum(params) / len(params)
+
+models: list[Module] = ...
+result: Module = ...
+result.load_state_dict(model_aggregate(average, models))
 ```
 
 ## Training Utilities
@@ -100,11 +113,5 @@ for epoch in range(epochs):
     if stopper.reach_stop():
         break
 # print final result
-print(f'best epoch: {stopper["epoch"]}, best f1: {stopper.best_metric}, acc: {stopper["epoch"]}')
+print(f'best f1: {stopper.best_metric}, best epoch: {stopper["epoch"]}, acc: {stopper["acc"]}')
 ```
-
-## Trainers
-
-The module `fedbox.algo` provides trainers of some federated learning algorithms.
-
-Notice: This module is still a work in progress.🚧

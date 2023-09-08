@@ -5,7 +5,7 @@ import torch
 import torch.nn
 import torch.testing
 
-from fedbox.utils.functional import *
+from fedbox.utils.functional import model_assign, assign, model_aggregate, model_average, weighted_average
 
 
 class TestModelOperation(unittest.TestCase):
