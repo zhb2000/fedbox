@@ -86,14 +86,14 @@ def model_aggregate(aggregator: Callable[..., Tensor], *args) -> dict[str, Tenso
 
         models: list[Module] = ...
         result: Module = ...
-        assign[result] = model_aggregation(average, models)
+        result.load_state_dict(model_aggregation(average, models))
 
     The unpacked version: ::
 
         ma: Module = ...
         mb: Module = ...
         result: Module = ...
-        assign[result] = model_aggregation(lambda a, b: (a + b) / 2, ma, mb)
+        result.load_state_dict(model_aggregation(lambda a, b: (a + b) / 2, ma, mb))
     """
     result: dict[str, Tensor] = {}
     if len(args) == 1:
@@ -110,7 +110,7 @@ def model_average(
     models: Sequence[Union[Module, Mapping[str, Tensor]]],
     weights: Sequence[float],
     normalize: bool = True,
-) -> Mapping[str, Tensor]:
+) -> dict[str, Tensor]:
     return model_aggregate(
         lambda params: weighted_average(params, weights, normalize),
         models

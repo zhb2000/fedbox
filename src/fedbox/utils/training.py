@@ -1,5 +1,5 @@
 import random
-from typing import Any, Union, Iterable, Optional
+from typing import Any, Union, Iterable, Optional, Mapping
 
 import numpy as np
 import torch
@@ -55,32 +55,40 @@ class EarlyStopper:
         return key in self.dict
 
 
-class MeanDict:
+class MeanDict(Mapping[str, Any]):
     def __init__(self):
-        self.sum: dict[str, float] = {}
-        self.count: dict[str, int] = {}
+        self.__sum_count: dict[str, tuple[Any, int]] = {}
 
     def add(self, **values):
         for key, value in values.items():
-            if key not in self:
-                self.sum[key] = 0.0
-                self.count[key] = 1
-            self.sum[key] += float(value)
-            self.count[key] += 1
+            entry = self.__sum_count.get(key)
+            if entry is None:
+                self.__sum_count[key] = (value, 1)
+            else:
+                tot, cnt = entry
+                self.__sum_count[key] = (tot + value), (cnt + 1)
 
     def __getitem__(self, key: str):
-        return self.sum[key] / self.count[key]
+        tot, cnt = self.__sum_count[key]
+        return tot / cnt
 
     def __delitem__(self, key: str):
-        del self.sum[key]
-        del self.count[key]
+        del self.__sum_count[key]
 
     def __contains__(self, key: str) -> bool:
-        return key in self.sum
+        return key in self.__sum_count
 
     def clear(self):
-        self.sum.clear()
-        self.count.clear()
+        self.__sum_count.clear()
+
+    def __len__(self) -> int:
+        return len(self.__sum_count)
+
+    def __iter__(self):
+        return iter(self.__sum_count)
+
+    def keys(self):
+        return self.__sum_count.keys()
 
 
 def set_seed(seed: int = 0):
@@ -100,4 +108,4 @@ def freeze_module(
 
 
 def unfreeze_module(module: Union[torch.nn.Module, Iterable[torch.Tensor]]):
-    freeze_module(module, False)
+    freeze_module(module, requires_grad=True)
