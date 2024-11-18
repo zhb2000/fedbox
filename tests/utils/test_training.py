@@ -13,7 +13,7 @@ class TestEarlyStopper(unittest.TestCase):
         self.assertTrue(stopper.is_better(2))
         self.assertTrue(stopper.update(2, other=2))
         self.assertEqual(2, stopper.best_metric)
-        self.assertEqual(2, stopper.dict['other'])
+        self.assertEqual(2, stopper.best_info['other'])
         self.assertEqual(2, stopper['other'])
 
     def test_lower_metric(self):
@@ -25,7 +25,7 @@ class TestEarlyStopper(unittest.TestCase):
         self.assertTrue(stopper.is_better(0))
         self.assertTrue(stopper.update(0, other=0))
         self.assertEqual(0, stopper.best_metric)
-        self.assertEqual(0, stopper.dict['other'])
+        self.assertEqual(0, stopper.best_info['other'])
         self.assertEqual(0, stopper['other'])
 
     def test_early_stopping(self):
