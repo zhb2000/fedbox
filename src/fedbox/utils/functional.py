@@ -1,5 +1,6 @@
 from typing import Union, Callable, Sequence, Mapping, cast, overload
 
+import numpy
 import torch
 import torch.nn
 from torch import Tensor
@@ -118,37 +119,53 @@ def model_average(
 
 
 def weighted_average(
-    tensors: Sequence[Tensor],
-    weights: Sequence[float],
+    tensors: Sequence[torch.Tensor],
+    weights: Union[Sequence[float], torch.Tensor, numpy.ndarray, None] = None,
     normalize: bool = True
-) -> Tensor:
+) -> torch.Tensor:
+    """
+    Compute the weighted average of a sequence of tensors.
+
+    Args:
+        tensors (Sequence[torch.Tensor]): A sequence of tensors to be averaged. 
+            All tensors must have the same shape.
+        weights (Union[Sequence[float], torch.Tensor, numpy.ndarray, None]): 
+            Weights associated with each tensor. If None, the function computes a 
+            simple average. The number of weights must match the number of tensors.
+        normalize (bool, optional): If True (default), the weights will be normalized 
+            so that their sum equals 1. If False, the weights will be used as provided.
+
+    Returns:
+        torch.Tensor: A tensor representing the weighted average. The shape of the 
+            output tensor is the same as the shape of the individual tensors in the input.
+
+    Example:
+        >>> import torch
+        >>> tensors = [torch.tensor([1.0, 2.0]), torch.tensor([3.0, 4.0])]
+        >>> weights = [0.3, 0.7]
+        >>> result = weighted_average(tensors, weights)
+        >>> print(result)
+        tensor([2.4, 3.4])
+
+    Notes:
+        - The function handles tensors with arbitrary dimensions.
+        - Weights are automatically converted to a tensor and broadcasted to match 
+          the dimensions of the input tensors.
+    """
+    stacked = torch.stack(list(tensors))  # shape: (num_tensors, dim1, ..., dim_n)
+    if weights is None:  # Compute simple average if weights are not provided
+        return stacked.mean(dim=0)
+    w = torch.as_tensor(weights, dtype=torch.float, device=stacked.device)  # shape: (num_tensors,)
+    if len(weights) != len(tensors):
+        raise ValueError("The number of weights must match the number of tensors.")
+    if w.sum() <= 0:
+        raise ValueError("The sum of weights must be greater than zero.")
     if normalize:
-        w_sum = sum(weights)
-        weights = [w / w_sum for w in weights]
-    result = sum(x * w for x, w in zip(tensors, weights))
-    return cast(Tensor, result)
+        w = w / w.sum()  # Normalize weights if required
+    # Expand weights to match the dimensions of the stacked tensors
+    w = w.view(-1, *[1 for _ in range(stacked.dim() - 1)])  # w.shape: (num_tensors, 1, ..., 1)
+    # Compute the weighted sum along the first dimension (tensors dimension)
+    return (stacked * w).sum(dim=0)  # shape: (dim1, ..., dim_n)
 
 
-def model_assign(dest: Module, src: Union[Module, Mapping[str, Tensor]]):
-    if isinstance(src, Module):
-        src = src.state_dict()
-    dest.load_state_dict(src, strict=False)
-
-
-class Assign:
-    def __setitem__(self, dest: Module, src: Union[Module, Mapping[str, Tensor]]):
-        model_assign(dest, src)
-
-    __call__ = __setitem__
-
-
-assign = Assign()
-"""
-A helper object to assign model parameters. ::
-
-    assign[dest] = src
-
-is equivalent to ::
-
-    model_assign(dest, src)
-"""
+from ._deprecated import model_assign, assign, Assign

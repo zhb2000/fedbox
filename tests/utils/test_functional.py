@@ -113,12 +113,42 @@ class TestTensorFunction(unittest.TestCase):
         torch.testing.assert_close(actual, expected, **kwargs)
 
     def test_weighted_average(self):
+        # Test with two tensors of equal weights
         one = torch.ones(10, 20)
         two = torch.ones(10, 20) * 2
         result = weighted_average([one, two], weights=[1, 1])
         self.assert_close(result, one * 0.5 + two * 0.5)
+
+        # Test with two tensors without normalization
         result = weighted_average([one, two], weights=[1, 1], normalize=False)
         self.assert_close(result, one + two)
+
+        # Test with different weights
+        result = weighted_average([one, two], weights=[0.25, 0.75])
+        self.assert_close(result, one * 0.25 + two * 0.75)
+
+        # Test with single tensor (edge case)
+        result = weighted_average([one], weights=[1])
+        self.assert_close(result, one)
+
+        # Test with tensors of larger dimensions
+        tensor1 = torch.ones(3, 3, 3)
+        tensor2 = torch.ones(3, 3, 3) * 3
+        result = weighted_average([tensor1, tensor2], weights=[2, 1])
+        self.assert_close(result, (tensor1 * 2 + tensor2 * 1) / 3)
+
+        # Test with weights provided as a numpy array
+        import numpy as np
+        result = weighted_average([one, two], weights=np.array([1, 2]))
+        self.assert_close(result, (one * 1 + two * 2) / 3)
+
+        # Test with weights provided as a torch tensor
+        result = weighted_average([one, two], weights=torch.tensor([1, 3]))
+        self.assert_close(result, (one * 1 + two * 3) / 4)
+
+        # Test with unnormalized weights
+        result = weighted_average([one, two], weights=[1, 3], normalize=False)
+        self.assert_close(result, one * 1 + two * 3)
 
 
 if __name__ == '__main__':

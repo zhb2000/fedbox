@@ -7,7 +7,7 @@ import torch.nn
 import torch.cuda
 
 
-class EarlyStopper:
+class Recorder:
     def __init__(self, higher_better: bool, patience: Optional[int] = None):
         if patience is not None and patience < 1:
             raise ValueError("'patience' must be at least 1")
@@ -55,7 +55,7 @@ class EarlyStopper:
         return key in self.dict
 
 
-class MeanDict(Mapping[str, Any]):
+class AverageMeter(Mapping[str, Any]):
     def __init__(self):
         self.__sum_count: dict[str, tuple[Any, int]] = {}
 
@@ -98,14 +98,22 @@ def set_seed(seed: int = 0):
     torch.cuda.manual_seed_all(seed)
 
 
-def freeze_module(
+def module_requires_grad_(
     module: Union[torch.nn.Module, Iterable[torch.Tensor]],
-    requires_grad: bool = False
+    mode: bool
 ):
     params = module.parameters() if isinstance(module, torch.nn.Module) else module
     for p in params:
-        p.requires_grad = requires_grad
+        p.requires_grad_(mode)
+
+
+def freeze_module(module: Union[torch.nn.Module, Iterable[torch.Tensor]]):
+    module_requires_grad_(module, mode=False)
 
 
 def unfreeze_module(module: Union[torch.nn.Module, Iterable[torch.Tensor]]):
-    freeze_module(module, requires_grad=True)
+    module_requires_grad_(module, mode=True)
+
+
+EarlyStopper = Recorder
+MeanDict = AverageMeter
